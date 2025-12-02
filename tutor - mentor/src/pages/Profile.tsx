@@ -24,7 +24,10 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { getUserProfileAPI, updateUserProfileAPI } from "@/service/user.service";
+
+// CHÚ Ý: CẬP NHẬT ĐƯỜNG DẪN SERVICE CHÍNH XÁC CỦA BẠN
+import { getUserProfileAPI, updateUserProfileAPI } from "@/service/user.service"; 
+import { getStudentBookingsAPI } from "@/service/booking.service"; // Đường dẫn đến file chứa getStudentBookingsAPI
 
 const CURRENT_USER_ID = "69292f0a423919adced2aa8b"; // Tạm thời hardcode, sau này lấy từ auth
 
@@ -39,11 +42,32 @@ interface UserProfile {
   rating?: number;
 }
 
+// Interface cho dữ liệu Booking trả về từ getStudentBookingsAPI
+interface BookingItem {
+    _id: string;
+    tutorId: {
+        _id: string;
+        username: string;
+        fullname?: string;
+        subject?: string[]; // Mảng môn học của gia sư
+    };
+    startTime?: string; // Đã sửa thành startTime
+    endTime?: string;   // Đã sửa thành endTime
+    meetingType: "online" | "offline";
+    status: "pending" | "confirmed" | "cancelled" | "draft" | "completed";
+    note?: string;
+}
+
+
 const Profile = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  
+  // State mới cho Lịch học (Bookings)
+  const [schedule, setSchedule] = useState<BookingItem[]>([]); 
+  const [loadingSchedule, setLoadingSchedule] = useState(true);
   
   // Form state
   const [fullname, setFullname] = useState("");
@@ -55,6 +79,8 @@ const Profile = () => {
 
   useEffect(() => {
     loadProfile();
+    // Gọi hàm tải lịch học
+    loadSchedule(); 
   }, []);
 
   const loadProfile = async () => {
@@ -75,6 +101,37 @@ const Profile = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Hàm tải lịch học mới
+  const loadSchedule = async () => {
+    try {
+      setLoadingSchedule(true);
+      // Gọi API lấy tất cả bookings của sinh viên
+      const allBookings: BookingItem[] = await getStudentBookingsAPI(CURRENT_USER_ID); 
+      
+      // *** ĐIỀU CHỈNH LỌC: CHỈ LẤY LỊCH CÓ STATUS LÀ 'PENDING' ***
+      const pendingSchedule = allBookings.filter(booking => 
+        booking.status === 'pending' // Đã dùng 'pending' (chữ thường)
+      );
+      
+      // Sắp xếp theo thời gian bắt đầu (tùy chọn)
+      pendingSchedule.sort((a, b) => 
+        new Date(a.startTime || '').getTime() - new Date(b.startTime || '').getTime() // Dùng startTime
+      );
+      
+      setSchedule(pendingSchedule);
+      
+    } catch (error: any) {
+      console.error("Lỗi tải lịch học:", error);
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải thông tin lịch học",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingSchedule(false);
     }
   };
 
@@ -128,6 +185,23 @@ const Profile = () => {
   const handleRemoveSubject = (sub: string) => {
     setSubject(subject.filter(s => s !== sub));
   };
+  
+  // Hàm trợ giúp để format thời gian và ngày từ ISO string
+  const formatTime = (isoString: string | undefined) => {
+    if (!isoString) return 'N/A';
+    try {
+        const date = new Date(isoString);
+        return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return 'N/A'; }
+  };
+  
+  const formatDate = (isoString: string | undefined) => {
+    if (!isoString) return 'N/A';
+    try {
+        const date = new Date(isoString);
+        return date.toLocaleDateString('vi-VN');
+    } catch (e) { return 'N/A'; }
+  };
 
   if (loading) {
     return (
@@ -155,6 +229,7 @@ const Profile = () => {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+    
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
@@ -246,7 +321,7 @@ const Profile = () => {
               </div>
             </Card>
 
-            {/* Teaching Schedule Card */}
+            {/* Teaching Schedule Card (Lịch hẹn đang chờ) */}
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -256,43 +331,55 @@ const Profile = () => {
                   </h3>
                 </div>
                 <Button variant="ghost" size="sm" className="text-primary">
-                  View More
+                  View All
                 </Button>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-card-foreground font-medium">
-                      Calculus 1
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Time: 7:00 - 8:50 | 05/09/2025
-                  </p>
+              
+              {/* HIỂN THỊ DỮ LIỆU BOOKING TỪ STATE */}
+              {loadingSchedule ? (
+                <p className="text-sm text-center text-muted-foreground">Đang tải lịch học...</p>
+              ) : schedule.length === 0 ? (
+                <p className="text-sm text-center text-muted-foreground">Không có lịch học nào.</p>
+              ) : (
+                <div className="space-y-3">
+                  {schedule.map((item, index) => (
+                    <div key={item._id}>
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-card-foreground font-medium">
+                          Tutor: {item.tutorId.fullname || item.tutorId.username}
+                        </span>
+                        
+                        {/* Đổi thành "Chờ duyệt" và căn phải */}
+                        <Badge 
+                            variant="secondary" 
+                            className="ml-auto text-xs font-normal bg-yellow-100 text-yellow-800 border-yellow-500"
+                        >
+                            Chờ duyệt
+                        </Badge>
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground">
+                        Môn học: 
+                        <span className="font-medium text-card-foreground ml-1">
+                            {item.tutorId.subject && item.tutorId.subject.length > 0
+                                ? item.tutorId.subject[0]
+                                : "Chưa rõ"}
+                        </span>
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Thời gian: 
+                        {/* In đậm giá trị thời gian */}
+                        <span className="font-bold text-card-foreground ml-1">
+                            {formatTime(item.startTime)} - {formatTime(item.endTime)} | {formatDate(item.startTime)}
+                        </span> 
+                      </p>
+                      
+                      {/* Thêm Separator sau mỗi item, trừ item cuối cùng */}
+                      {index < schedule.length - 1 && <Separator className="mt-3" />}
+                    </div>
+                  ))}
                 </div>
-                <Separator />
-                <div>
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-card-foreground font-medium">
-                      Physics 1
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Time: 9:00 - 10:50 | 05/09/2025
-                  </p>
-                </div>
-                <Separator />
-                <div>
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-card-foreground font-medium">
-                      General Chemistry
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Time: 14:00 - 15:50 | 05/09/2025
-                  </p>
-                </div>
-              </div>
+              )}
             </Card>
           </div>
         </div>
@@ -476,5 +563,3 @@ const Profile = () => {
 };
 
 export default Profile;
-
-
