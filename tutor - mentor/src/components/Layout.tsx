@@ -1,6 +1,7 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Home, Calendar, Users, User, Bell, LogOut, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,8 +23,26 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
-
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const isActive = (path: string) => location.pathname === path;
+
+  // 🚀 HÀM LOGOUT
+  const handleLogout = () => {
+    // 1. XÓA TOKEN VÀ THÔNG TIN USER khỏi Local Storage
+    localStorage.removeItem("userToken");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("userRole");
+
+    // 2. Thông báo (optional)
+    toast({
+        title: "Đăng xuất thành công",
+        description: "Bạn đã thoát khỏi phiên làm việc.",
+    });
+
+    // 3. Chuyển hướng về trang đăng nhập
+    navigate("/login"); 
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -109,7 +128,7 @@ const Layout = ({ children }: LayoutProps) => {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="flex items-center gap-2 cursor-pointer text-destructive">
+                <DropdownMenuItem className="flex items-center gap-2 cursor-pointer text-destructive" onClick={handleLogout}>
                   <LogOut className="h-4 w-4" />
                   Exit
                 </DropdownMenuItem>

@@ -1,4 +1,7 @@
 import { User } from "../models/user.model.js";
+import jwt from "jsonwebtoken"; 
+
+const JWT_SECRET = "123";
 
 // 1. Tạo User nhanh (để có dữ liệu test)
 export const createUser = async (req, res) => {
@@ -71,6 +74,41 @@ export const updateUserProfile = async (req, res) => {
             message: "Cập nhật profile thành công!", 
             user 
         });
+
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi Server: " + error.message });
+    }
+}
+
+const generateToken = (id) => {
+    return jwt.sign({ id }, JWT_SECRET, {
+        expiresIn: "30d", 
+    });
+};
+
+export const loginUser = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        // 1. Tìm User bằng username
+        const user = await User.findOne({ username });
+
+        if (user && user.password === password) { 
+            
+            // Đăng nhập thành công: Tạo phiên (JWT)
+            res.status(200).json({
+                _id: user._id,
+                username: user.username,
+                fullname: user.fullname,
+                email: user.email,
+                role: user.role,
+                token: generateToken(user._id), // Gửi token về client
+                message: "Đăng nhập thành công!"
+            });
+        } else {
+            // Thất bại
+            res.status(401).json({ message: "Sai tên đăng nhập hoặc mật khẩu" });
+        }
 
     } catch (error) {
         res.status(500).json({ message: "Lỗi Server: " + error.message });

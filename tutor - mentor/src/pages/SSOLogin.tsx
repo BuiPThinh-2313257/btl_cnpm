@@ -6,15 +6,20 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import axios from "axios"; // 👈 IMPORT AXIOS
+
+// Định nghĩa base URL của API
+const API_BASE_URL = "http://localhost:4000"; // Thay đổi nếu API của bạn chạy ở port khác!
 
 const SSOLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // 👈 State loading
   const [warnBeforeLogin, setWarnBeforeLogin] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => { // 👈 Thêm async
     e.preventDefault();
     
     if (!username || !password) {
@@ -26,15 +31,51 @@ const SSOLogin = () => {
       return;
     }
 
-    // TODO: Gọi API xác thực SSO ở đây
-    // Tạm thời redirect về trang home sau khi đăng nhập
-    toast({
-      title: "Đăng nhập thành công",
-      description: "Chào mừng bạn trở lại!",
-    });
-    
-    // Redirect về trang home (Index.tsx)
-    navigate("/home");
+    setIsLoading(true); // Bắt đầu loading
+
+    try {
+        // 🚀 GỌI API ĐĂNG NHẬP
+        const response = await axios.post(`${API_BASE_URL}/api/users/login`, {
+            username,
+            password,
+        });
+
+        // 🎯 Xử lý thành công
+        const { token, fullname, role } = response.data;
+
+        // 1. LƯU TOKEN VÀO LOCAL STORAGE (hoặc Redux/Context cho session)
+        // Đây là bước quan trọng nhất để duy trì phiên đăng nhập
+        localStorage.setItem("userToken", token);
+        localStorage.setItem("userName", fullname);
+        localStorage.setItem("userRole", role);
+
+        // 2. Thông báo và chuyển hướng
+        toast({
+            title: "Đăng nhập thành công",
+            description: `Chào mừng ${fullname} trở lại!`,
+        });
+        
+        // Redirect về trang home (Index.tsx)
+        navigate("/home");
+
+    } catch (error) {
+        // ❌ Xử lý lỗi
+        let errorMessage = "Đã xảy ra lỗi không xác định.";
+        
+        if (axios.isAxiosError(error) && error.response) {
+            // Lấy thông báo lỗi từ server (Ví dụ: "Sai tên đăng nhập hoặc mật khẩu")
+            errorMessage = error.response.data.message || errorMessage; 
+        }
+
+        toast({
+            title: "Đăng nhập thất bại",
+            description: errorMessage,
+            variant: "destructive",
+        });
+
+    } finally {
+        setIsLoading(false); // Kết thúc loading
+    }
   };
 
   const handleClear = () => {
@@ -80,6 +121,7 @@ const SSOLogin = () => {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="username"
                     className="w-full"
+                    disabled={isLoading} // 👈 Thêm disabled
                   />
                 </div>
 
@@ -93,6 +135,7 @@ const SSOLogin = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="password"
                     className="w-full"
+                    disabled={isLoading} // 👈 Thêm disabled
                   />
                 </div>
 
@@ -102,6 +145,7 @@ const SSOLogin = () => {
                     id="warn"
                     checked={warnBeforeLogin}
                     onCheckedChange={(checked) => setWarnBeforeLogin(checked === true)}
+                    disabled={isLoading} // 👈 Thêm disabled
                   />
                   <Label
                     htmlFor="warn"
@@ -116,14 +160,16 @@ const SSOLogin = () => {
                   <Button 
                     type="submit" 
                     className="bg-primary hover:bg-primary-hover text-white flex-1"
+                    disabled={isLoading} // 👈 Thêm disabled
                   >
-                    Đăng nhập
+                    {isLoading ? "Đang đăng nhập..." : "Đăng nhập"} {/* 👈 Hiển thị loading */}
                   </Button>
                   <Button 
                     type="button" 
                     variant="outline" 
                     onClick={handleClear}
                     className="flex-1"
+                    disabled={isLoading} // 👈 Thêm disabled
                   >
                     Xóa
                   </Button>
@@ -207,4 +253,3 @@ const SSOLogin = () => {
 };
 
 export default SSOLogin;
-

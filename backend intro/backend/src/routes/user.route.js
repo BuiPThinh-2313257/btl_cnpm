@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createUser, getAllTutors, getUserProfile, updateUserProfile } from "../controller/user.controller.js";
+import { createUser, getAllTutors, getUserProfile, updateUserProfile, loginUser } from "../controller/user.controller.js";
 
 const router = Router();
 
@@ -19,5 +19,6 @@ router.get('/profile/:id', getUserProfile);
 // URL sẽ là: PUT /api/users/profile/12345abcdef
 router.put('/profile/:id', updateUserProfile);
 
+router.post('/login', loginUser);
 
 export default router;

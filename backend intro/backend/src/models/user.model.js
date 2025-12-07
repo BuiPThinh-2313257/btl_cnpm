@@ -34,7 +34,9 @@ const userSchema = new Schema(
 
         rating: { type: Number, default: 5.0 },
         experience: { type: String, default: "Chưa cập nhật" }
-    }
+    },
+
+    {timestamps: true}
 );
 
 export const User = mongoose.model("User", userSchema)
